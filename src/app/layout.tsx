@@ -1,89 +1,63 @@
-import { Analytics } from "@vercel/analytics/react";
-import { cookies } from "next/headers";
-import { AxiomWebVitals } from "next-axiom";
-import { ToastContainer, Slide } from "react-toastify";
+import { cn, metaTagsGenerator } from "@/lib/utils";
+import "./globals.css";
+import "./styles/editor.css";
+import type { Metadata } from "next";
+import { Inter } from "next/font/google";
+import Navbar from "@/components/common/Navbar";
+import { Toaster } from "@/components/ui/toaster";
+import { getAuthSession } from "@/lib/auth";
+import Providers from "@/components/common/Providers";
+import "slick-carousel/slick/slick.css";
+import "slick-carousel/slick/slick-theme.css";
+import { db } from "@/lib/db";
+const inter = Inter({ subsets: ["latin"] });
 
-import "react-toastify/dist/ReactToastify.css";
-
-import "./styles/layout.scss";
-import { Aside } from "@/features/aside";
-import { AuthModalTrigger } from "@/features/auth";
-import { MobileTweetButton } from "@/features/create-tweet";
-import { MobileNavbar } from "@/features/navbar";
-import { Sidebar } from "@/features/sidebar";
-import { NextAuthProvider } from "@/utils/next-auth-provider";
-import { ReactQueryProvider } from "@/utils/react-query-provider";
-
-import { Hamburger } from "./hamburger";
-import { JoinTwitter } from "./join-twitter";
-import styles from "./styles/toast.module.scss";
-import "./styles/layout.scss";
+export const metadata = metaTagsGenerator({});
 
 export default async function RootLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
-  const nextCookies = cookies();
-  const theme = nextCookies.get("theme");
-  const color = nextCookies.get("color");
-  const fontSize = nextCookies.get("font-size");
+  const session = await getAuthSession();
+  const username = session?.user?.username;
+
+  const isUser = !!session?.user;
+
+  const notifcations = await db.notification.findMany({
+    where: {
+      receiverId: session?.user?.id,
+      read: false,
+    },
+  });
 
   return (
-    <html
-      className={`${theme?.value ?? ""} ${color?.value ?? ""} ${
-        fontSize?.value ?? ""
-      }`}
-      lang="en"
-    >
-      <body suppressHydrationWarning={true}>
-        <NextAuthProvider>
-          <ReactQueryProvider>
-            <div className="layout">
-              <MobileNavbar />
-              <MobileTweetButton />
+    <html lang="en">
+      <head>
+        <link rel="manifest" href="/manifest.json" />
+        <link rel="apple-touch-icon" href="/icon.png"></link>
+        <meta name="theme-color" content="#0A0A0A" />
+      </head>
+      <body className={cn(inter.className)}>
+        <Providers>
+          <div className=" mx-auto max-w-4xl ">
+            <div className=" flex max-w-4xl justify-center ">
+              {isUser && (
+                <Navbar
+                  unReadNotificationCount={notifcations.length}
+                  username={username}
+                />
+              )}
 
-              <Sidebar />
-
-              <main>{children}</main>
-
-              <Aside />
-
-              <ToastContainer
-                position="bottom-center"
-                autoClose={2000}
-                hideProgressBar={true}
-                transition={Slide}
-                closeButton={false}
-                closeOnClick={true}
-                className={styles.container}
-                toastClassName={styles.toast}
-                role="alert"
-              />
-
-              <AuthModalTrigger />
-              <JoinTwitter />
-              <Hamburger />
+              <main className=" pt-5 pb-10 container  relative  antialiased">
+                {children}
+              </main>
             </div>
-          </ReactQueryProvider>
-        </NextAuthProvider>
-        <Analytics />
-        <AxiomWebVitals />
+          </div>
+        </Providers>
+
+        <Toaster />
       </body>
     </html>
   );
 }
-
-export const metadata = {
-  title: {
-    default: "Chirp",
-    template: "%s / Chirp",
-    absolute: "Chirp",
-  },
-
-  description: "Chirp is a social media platform for sharing your thoughts.",
-
-  icons: {
-    icon: "/twitter-logo.svg",
-  },
-};

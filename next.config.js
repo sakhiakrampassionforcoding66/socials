@@ -1,24 +1,26 @@
-/* eslint-disable @typescript-eslint/no-var-requires */
 /** @type {import('next').NextConfig} */
-const path = require("path");
-const nextConfig = {
-  images: {
-    remotePatterns: [
-      {
-        protocol: "https",
-        hostname: "hbrhodokmkprrksqwoph.supabase.co",
-      },
-    ],
-  },
 
+const withPWA = require("next-pwa")({
+  dest: "public",
+  register: true,
+  skipWaiting: true,
+});
+
+const nextConfig = {
   experimental: {
-    scrollRestoration: true,
+    serverActions: true,
   },
-  sassOptions: {
-    includePaths: [path.join(__dirname, "src/sass")],
+  typescript: {
+    ignoreBuildErrors: true,
   },
+  images: {
+    domains: ["lh3.googleusercontent.com", "res.cloudinary.com"],
+  },
+  
 };
 
-const { withAxiom } = require("next-axiom");
-
-module.exports = withAxiom(nextConfig);
+if (process.env.NODE_ENV === "production") {
+  module.exports = withPWA(nextConfig);
+} else {
+  module.exports = nextConfig;
+}

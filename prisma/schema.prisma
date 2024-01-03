@@ -1,36 +1,29 @@
 generator client {
-  provider = "prisma-client-js"
+  provider      = "prisma-client-js"
+  binaryTargets = ["native", "debian-openssl-3.0.x"]
 }
 
 datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
-}
-
-model VerificationToken {
-  identifier String
-  token      String   @unique
-  expires    DateTime
-
-  @@unique([identifier, token])
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
 }
 
 model Account {
-  id                 String  @id @default(cuid())
-  userId             String
-  type               String
-  provider           String
-  providerAccountId  String
-  refresh_token      String? @db.Text
-  access_token       String? @db.Text
-  oath_token         String? @db.Text
-  oauth_token_secret String?
-  expires_at         Int?
-  token_type         String?
-  scope              String?
-  id_token           String? @db.Text
-  session_state      String?
-  user               User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? @db.Text
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([provider, providerAccountId])
 }
@@ -38,145 +31,97 @@ model Account {
 model Session {
   id           String   @id @default(cuid())
   sessionToken String   @unique
-  expires      DateTime
   userId       String
+  expires      DateTime
   user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
-enum UserRole {
-  ADMIN
-  USER
-}
-
 model User {
-  id                 String         @id @default(cuid())
-  name               String
-  screen_name        String         @unique @default(cuid())
-  location           String?
-  url                String?
-  description        String?
-  protected          Boolean        @default(false)
-  verified           Boolean        @default(false)
-  email              String?        @unique
-  emailVerified      DateTime?
-  image              String?
-  password           String?
-  role               UserRole       @default(USER)
-  created_at         DateTime       @default(now())
-  followers_count    Int            @default(0)
-  friends_count      Int            @default(0)
-  favorites_count    Int            @default(0)
-  statuses_count     Int            @default(0)
-  profile_banner_url String?
-  profile_image_url  String?
-  accounts           Account[]
-  sessions           Session[]
-  tweets             Tweet[]
-  likes              Like[]
-  followers          User[]         @relation(name: "Followers")
-  following          User[]         @relation(name: "Followers")
-  retweets           Retweet[]
-  bookmarks          Bookmark[]
-  sent_messages      Message[]      @relation("receiver")
-  received_messages  Message[]      @relation("sender")
-  conversations      Conversation[]
-  pinned_tweet       Tweet?         @relation("pinned_tweet", fields: [pinned_tweet_id], references: [id])
-  pinned_tweet_id    String?
+  id            String    @id @default(cuid())
+  name          String
+  email         String    @unique
+  emailVerified DateTime?
+  bio           String    @default("")
+  username      String    @unique @default(cuid())
+  isEdited      Boolean   @default(false)
+  onboarded     Boolean   @default(false)
+  isPrivate     Boolean   @default(false)
+  image         String
+  accounts      Account[]
+  sessions      Session[]
+  threads       Thread[]
+
+  followedBy User[] @relation("UserFollows")
+  following  User[] @relation("UserFollows")
+
+  role                  Role           @default(USER)
+  createdAt             DateTime       @default(now())
+  updatedAt             DateTime       @default(now()) @updatedAt
+  likes                 Likes[]
+  repost                Repost[]
+  // Define the relation to sent notifications
+  sentNotifications     Notification[] @relation("SentNotifications")
+  // Define the relation to received notifications
+  receivedNotifications Notification[] @relation("ReceivedNotifications")
 }
 
-model Tweet {
-  id                      String     @id @default(cuid())
-  text                    String?
-  source                  String     @default("web")
-  in_reply_to_user_id     String?
-  in_reply_to_screen_name String?
-  is_quote_status         Boolean    @default(false)
-  quoted_status_id        String?
-  quote_count             Int        @default(0)
-  reply_count             Int        @default(0)
-  retweet_count           Int        @default(0)
-  favorite_count          Int        @default(0)
-  possibly_sensitive      Boolean    @default(false)
-  lang                    String     @default("en")
-  created_at              DateTime   @default(now())
-  author                  User       @relation(fields: [author_id], references: [id], onDelete: Cascade)
-  author_id               String
-  media                   Media[]
-  likes                   Like[]
-  retweets                Retweet[]
-  quotes                  Tweet[]    @relation("quoted_tweet")
-  quoted_tweet_id         String?
-  quoted_tweet            Tweet?     @relation("quoted_tweet", fields: [quoted_tweet_id], references: [id])
-  comments                Tweet[]    @relation("tweet-comment")
-  in_reply_to_status_id   String?
-  tweet_comment           Tweet?     @relation("tweet-comment", fields: [in_reply_to_status_id], references: [id])
-  bookmarks               Bookmark[]
-  pinned_by_users         User[]     @relation("pinned_tweet")
+model Thread {
+  id            String          @id @default(cuid())
+  content       Json
+  authorId      String
+  author        User            @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  createdAt     DateTime        @default(now())
+  parentId      String?
+  parent        Thread?         @relation("ParentChildren", fields: [parentId], references: [id])
+  children      Thread[]        @relation("ParentChildren")
+  updatedAt     DateTime        @default(now()) @updatedAt
+  likes         Likes[]
+  repost        Repost?
+  Notifications Notification[]
 }
 
-model Media {
-  id         String   @id @default(cuid())
-  media_url  String
-  media_type String
-  media_path String
-  tweet      Tweet?   @relation(fields: [tweet_id], references: [id], onDelete: Cascade)
-  tweet_id   String?
-  Message    Message? @relation(fields: [message_id], references: [id], onDelete: Cascade)
-  message_id String?
+model Likes {
+  thread    Thread   @relation(fields: [threadId], references: [id])
+  threadId  String
+  user      User     @relation(fields: [userId], references: [id])
+  userId    String
+  createdAt DateTime @default(now())
+
+  @@id([threadId, userId])
 }
 
-model Like {
-  id         String   @id @default(cuid())
-  tweet      Tweet    @relation(fields: [tweet_id], references: [id], onDelete: Cascade)
-  tweet_id   String
-  user       User     @relation(fields: [user_id], references: [id])
-  user_id    String
-  created_at DateTime @default(now())
+model Repost {
+  id         String @id @default(cuid())
+  threadId   String @unique
+  thread     Thread @relation(fields: [threadId], references: [id])
+  reposter   User   @relation(fields: [reposterId], references: [id])
+  reposterId String
 }
 
-model Retweet {
-  id         String   @id @default(cuid())
-  tweet      Tweet    @relation(fields: [tweet_id], references: [id], onDelete: Cascade)
-  tweet_id   String
-  user       User     @relation(fields: [user_id], references: [id])
-  user_id    String
-  created_at DateTime @default(now())
+model Notification {
+  id         String           @id @default(cuid())
+  senderId   String
+  receiverId String
+  sender     User             @relation("SentNotifications", fields: [senderId], references: [id])
+  receiver   User             @relation("ReceivedNotifications", fields: [receiverId], references: [id])
+  read       Boolean          @default(false)
+  type       NotificationType
+  createdAt  DateTime         @default(now())
+  updatedAt  DateTime         @default(now()) @updatedAt
+  userId     String?
+  thread     Thread?          @relation(fields: [threadId], references: [id])
+  threadId   String?
 }
 
-model Bookmark {
-  id         String   @id @default(cuid())
-  tweet      Tweet    @relation(fields: [tweet_id], references: [id], onDelete: Cascade)
-  tweet_id   String
-  user       User     @relation(fields: [user_id], references: [id])
-  user_id    String
-  created_at DateTime @default(now())
+enum NotificationType {
+  LIKE
+  REPOST
+  FOLLOW
+  NEWPOST
+  REPLY
 }
 
-model Hashtag {
-  id         String   @id @default(cuid())
-  text       String
-  hashtag    String   @unique
-  score      Int      @default(1)
-  created_at DateTime @default(now())
-}
-
-model Message {
-  id              String       @id @default(cuid())
-  text            String?
-  image           String?
-  created_at      DateTime     @default(now())
-  sender          User         @relation(name: "sender", fields: [sender_id], references: [id], onDelete: Cascade)
-  sender_id       String
-  receiver        User         @relation(name: "receiver", fields: [receiver_id], references: [id], onDelete: Cascade)
-  receiver_id     String
-  conversation    Conversation @relation(fields: [conversation_id], references: [id], onDelete: Cascade)
-  conversation_id String
-  media           Media[]
-}
-
-model Conversation {
-  id         String    @id @default(cuid())
-  users      User[]
-  messages   Message[]
-  created_at DateTime  @default(now())
+enum Role {
+  USER
+  ADMIN
 }
